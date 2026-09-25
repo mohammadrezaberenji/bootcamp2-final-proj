@@ -182,3 +182,54 @@ This playbook should only be used when rebuilding the cluster. It is not require
 SSH private keys, passwords, tokens and other credentials must not be committed to the repository.
 
 After a normal system restart, the cluster does not need to be initialized again. Once the physical hosts and virtual machines are running, use `health-check.yml` to verify that the cluster has recovered correctly.
+
+## Shared GitLab Runner
+
+`playbooks/gitlab-runner.yml` maintains one shared GitLab Runner container on
+the project server. It uses the Docker executor; teammates use it through
+GitLab project permissions and do not need direct server access.
+
+The `gitlab_runner` role creates the Compose directory, renders `compose.yml`,
+starts or reconciles the container, and verifies its running state. Runner
+configuration persists in the Docker volume `gitlab-runner-config`.
+
+Use the separate project-server inventory for this playbook:
+
+```bash
+cp inventory/devops-server.ini.example inventory/devops-server.ini
+
+ansible-playbook -i inventory/devops-server.ini \
+  --syntax-check playbooks/gitlab-runner.yml
+
+ansible-playbook -i inventory/devops-server.ini \
+  playbooks/gitlab-runner.yml
+```
+
+`inventory/devops-server.ini` is ignored by Git. Never commit a real server
+address, private-key path, password, or Runner token.
+
+Runner registration is a separate manual step because the GitLab
+authentication token must not be stored in Git:
+
+```bash
+docker exec -it gitlab-runner gitlab-runner register
+docker exec gitlab-runner gitlab-runner verify
+```
+
+The Runner mounts `/var/run/docker.sock` so CI can build images. Docker-socket
+access is highly privileged; use this Runner only for trusted project code.
+
+## Argo CD and GitOps
+
+`playbooks/argocd.yml` runs the `argocd` role. It installs the pinned Argo CD
+release, creates Nexus image-pull credentials, rewrites Argo CD image sources
+to the Nexus Docker group, and waits for the workloads to become available.
+
+The complete sandbox runbook, verification commands, secure UI tunnel,
+troubleshooting, and production Kubeadm adaptation are in the [Argo CD setup
+manual](../docs/ansible/argocd-setup.md).
+
+The Minikube sandbox role is separate: `playbooks/minikube-sandbox.yml` and
+`roles/minikube_sandbox/`. Production Kubeadm provisioning uses the cluster
+playbooks documented above; do not apply Minikube-specific variables to the
+three-node production cluster.
