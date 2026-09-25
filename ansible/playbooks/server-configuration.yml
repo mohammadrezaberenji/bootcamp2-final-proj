@@ -1,0 +1,214 @@
+---
+- name: Configure DevOps server
+  hosts: all
+  become: true
+  vars:
+    team_users:
+      - name: MohammadReza
+        ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFSGO4Ro0oR5m77RzTXslmWAQYJ+apbFSQ4y6eBCnhU+"
+      - name: Zahra
+        ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOybp+a2ZVYyJeFQC0s4i9GvH7yG8p+hvA+kKMmgxWf2"
+      - name: Ashkan
+        ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILpSliLgtDRLUR6WsXHzgrfrgfOG4UdZ8oak2KU3mKCl"
+    # All team users get read/write access to its kubeconfig.
+    minikube_owner: Ashkan
+    kubectl_version: "v1.30.0"
+    minikube_version: "latest"   # or pin e.g. "v1.33.1"
+
+  tasks:
+
+    # -------------------------------------------------------------------
+    # 1. Base OS setup
+    # -------------------------------------------------------------------
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+
+    - name: Install base packages
+      apt:
+        name:
+          - curl
+          - git
+          - vim
+          - htop
+          - ca-certificates
+          - gnupg
+          - lsb-release
+          - apt-transport-https
+          - software-properties-common
+          - conntrack
+          - unzip
+          - zip
+          - tree
+          - ncdu
+          - jq
+          - net-tools
+          - dnsutils
+          - lsof
+          - tmux
+          - wget
+          - bat
+        state: present
+
+    # -------------------------------------------------------------------
+    # 2. Team user accounts
+    # -------------------------------------------------------------------
+    - name: Create team user accounts
+      user:
+        name: "{{ item.name }}"
+        shell: /bin/bash
+        create_home: true
+        password: "!"
+        state: present
+      loop: "{{ team_users }}"
+
+    - name: Create .ssh directory for each user
+      file:
+        path: "/home/{{ item.name }}/.ssh"
+        state: directory
+        mode: "0700"
+        owner: "{{ item.name }}"
+        group: "{{ item.name }}"
+      loop: "{{ team_users }}"
+
+    - name: Install each user's SSH public key
+      ansible.posix.authorized_key:
+        user: "{{ item.name }}"
+        key: "{{ item.ssh_public_key }}"
+        state: present
+      loop: "{{ team_users }}"
+
+    - name: Grant team users sudo
+      copy:
+        dest: "/etc/sudoers.d/{{ item.name }}"
+        content: "{{ item.name }} ALL=(ALL:ALL) ALL\n"
+        mode: "0440"
+        validate: "visudo -cf %s"
+      loop: "{{ team_users }}"
+
+    # -------------------------------------------------------------------
+    # 3. Docker Engine (official Docker repo, not distro default)
+    # -------------------------------------------------------------------
+    - name: Create keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker apt repository
+      apt_repository:
+        repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+
+    - name: Install Docker Engine and plugins
+      apt:
+        update_cache: true
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+    - name: Ensure docker group exists
+      group:
+        name: docker
+        state: present
+
+    - name: Add team users to docker group
+      user:
+        name: "{{ item.name }}"
+        groups: docker
+        append: true
+      loop: "{{ team_users }}"
+
+    - name: Enable and start Docker service
+      systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    # -------------------------------------------------------------------
+    # 4. kubectl
+    # -------------------------------------------------------------------
+    - name: Download kubectl binary
+      get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
+
+    # -------------------------------------------------------------------
+    # 5. minikube
+    # -------------------------------------------------------------------
+    - name: Download minikube binary
+      get_url:
+        url: "https://github.com/kubernetes/minikube/releases/{{ 'latest/download' if minikube_version == 'latest' else 'download/' + minikube_version }}/minikube-linux-amd64"
+        dest: /usr/local/bin/minikube
+        mode: "0755"
+
+    - name: Check if minikube cluster already exists for owner user
+      become_user: "{{ minikube_owner }}"
+      command: minikube status
+      register: minikube_status
+      changed_when: false
+      failed_when: false
+
+    - name: Start minikube cluster (docker driver) as owner user
+      become_user: "{{ minikube_owner }}"
+      command: minikube start --driver=docker --cpus=4 --memory=8192mb
+      when: "'Running' not in minikube_status.stdout"
+
+    # -------------------------------------------------------------------
+    # 6. Share kubeconfig with the whole team
+    # -------------------------------------------------------------------
+    - name: Create shared kube directory
+      file:
+        path: /etc/shared-kube
+        state: directory
+        mode: "0755"
+
+    - name: Copy owner's kubeconfig to shared location
+      copy:
+        src: "/home/{{ minikube_owner }}/.kube/config"
+        dest: /etc/shared-kube/config
+        remote_src: true
+        mode: "0644"
+
+    - name: Ensure .kube directories exist before symlinking
+      file:
+        path: "/home/{{ item.name }}/.kube"
+        state: directory
+        mode: "0755"
+        owner: "{{ item.name }}"
+        group: "{{ item.name }}"
+      loop: "{{ team_users }}"
+
+    - name: Symlink shared kubeconfig into each user's home
+      file:
+        src: /etc/shared-kube/config
+        dest: "/home/{{ item.name }}/.kube/config"
+        state: link
+        force: true
+      loop: "{{ team_users }}"
+      when: item.name != minikube_owner
+
+    - name: Set KUBECONFIG env var for all users via profile.d
+      copy:
+        dest: /etc/profile.d/kubeconfig.sh
+        content: |
+          export KUBECONFIG=/etc/shared-kube/config
+        mode: "0644"
+
+  handlers: []

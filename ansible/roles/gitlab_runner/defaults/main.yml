@@ -1,0 +1,8 @@
+---
+gitlab_runner_container_name: gitlab-runner
+gitlab_runner_image: "gitlab/gitlab-runner:alpine-v18.10.1"
+
+gitlab_runner_dir: "/home/{{ ansible_user }}/gitlab-runner"
+
+gitlab_runner_config_volume: gitlab-runner-config
+gitlab_runner_restart_policy: "unless-stopped"

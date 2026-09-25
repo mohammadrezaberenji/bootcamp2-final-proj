@@ -1,0 +1,36 @@
+---
+- name: Create GitLab Runner Compose directory
+  ansible.builtin.file:
+    path: "{{ gitlab_runner_dir }}"
+    state: directory
+    mode: "0750"
+
+- name: Render GitLab Runner Compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ gitlab_runner_dir }}/compose.yml"
+    mode: "0640"
+  register: gitlab_runner_compose
+
+- name: Check Gitlab Runenr is Running
+  ansible.builtin.command:
+    cmd: docker compose -f compose.yml ps --status running --services
+    chdir: "{{ gitlab_runner_dir}}"
+  register: gitlab_runner_running_services
+  changed_when: false
+
+- name: Start or reconcile Gitlab Runner
+  ansible.builtin.command:
+    cmd: docker compose -f compose.yml up -d
+    chdir: "{{ gitlab_runner_dir}}"
+  when: >
+    gitlab_runner_compose.changed or 
+    gitlab_runner_container_name not in gitlab_runner_running_services.stdout_lines
+
+- name: Verify GilabRunner is running
+  ansible.builtin.command:
+    cmd: docker compose -f compose.yml ps --status running --services
+    chdir: "{{ gitlab_runner_dir }}"
+  register: gitlab_runner_final_services
+  changed_when: false
+  failed_when: gitlab_runner_container_name not in gitlab_runner_final_services.stdout_lines

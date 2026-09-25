@@ -1,0 +1,152 @@
+
+
+- name: Install ACL utilities required for Ansible user switching
+  ansible.builtin.apt:
+    name: acl
+    state: present
+
+- name: Create dedicated non-root Minikube owner
+  ansible.builtin.user:
+    name: "{{ minikube_owner }}"
+    shell: "{{ minikube_owner_shell }}"
+    create_home: true
+    password_lock: true
+    groups: docker
+    append: true
+    state: present
+
+- name: Create private Kubernetes configuration directory
+  ansible.builtin.file:
+    path: "{{ minikube_kube_dir }}"
+    state: directory
+    owner: "{{ minikube_owner }}"
+    group: "{{ minikube_owner }}"
+    mode: "0700"
+
+- name: Create private Minikube state directory
+  ansible.builtin.file:
+    path: "{{ minikube_owner_home }}/.minikube"
+    state: directory
+    owner: "{{ minikube_owner }}"
+    group: "{{ minikube_owner }}"
+    mode: "0700"
+
+- name: Check Minikube binary exists
+  ansible.builtin.stat:
+    path: "{{ minikube_binary }}"
+  register: minikube_binary_status
+
+- name: Check kubectl binary exists
+  ansible.builtin.stat:
+    path: "{{ kubectl_binary }}"
+  register: kubectl_binary_status
+
+- name: Assert required Kubernetes tools are installed
+  ansible.builtin.assert:
+    that:
+      - minikube_binary_status.stat.exists
+      - kubectl_binary_status.stat.exists
+    fail_msg: >-
+      Minikube and kubectl must be installed by the base server configuration
+      before configuring the sandbox profile.
+- name: Verify Docker access as Minikube owner
+  ansible.builtin.command:
+    cmd: docker info
+  become: true
+  become_user: "{{ minikube_owner }}"
+  environment:
+    HOME: "{{ minikube_owner_home }}"
+  changed_when: false
+
+- name: Check TaskFlow sandbox profile status
+  ansible.builtin.command:
+    cmd: >-
+      {{ minikube_binary }} status
+      --profile={{ minikube_profile }}
+      --output=json
+  become: true
+  become_user: "{{ minikube_owner }}"
+  environment:
+    HOME: "{{ minikube_owner_home }}"
+    KUBECONFIG: "{{ minikube_kubeconfig }}"
+  register: minikube_profile_status
+  changed_when: false
+  failed_when: false
+
+- name: Start TaskFlow sandbox Minikube profile
+  ansible.builtin.command:
+    cmd: >-
+      {{ minikube_binary }} start
+      --profile={{ minikube_profile }}
+      --driver={{ minikube_driver }}
+      --cpus={{ minikube_cpus }}
+      --memory={{ minikube_memory }}
+      --disk-size={{ minikube_disk_size }}
+      {% for registry in minikube_insecure_registries %}
+      --insecure-registry={{ registry }}
+      {% endfor %}
+  become: true
+  become_user: "{{ minikube_owner }}"
+  environment:
+    HOME: "{{ minikube_owner_home }}"
+    KUBECONFIG: "{{ minikube_kubeconfig }}"
+  when:
+    - minikube_state == 'started'
+    - minikube_profile_status.rc != 0
+
+- name: Render containerd Nexus registry rule
+  ansible.builtin.template:
+    src: containerd-hosts.toml.j2
+    dest: "{{ minikube_owner_home }}/.minikube/nexus-hosts.toml"
+    owner: "{{ minikube_owner }}"
+    group: "{{ minikube_owner }}"
+    mode: "0600"
+  register: minikube_containerd_registry_rule
+
+- name: Copy Nexus registry rule into Minikube node
+  ansible.builtin.command:
+    cmd: >-
+      {{ minikube_binary }} --profile {{ minikube_profile }} cp
+      {{ minikube_owner_home }}/.minikube/nexus-hosts.toml
+      /tmp/nexus-hosts.toml
+  become: true
+  become_user: "{{ minikube_owner }}"
+  environment:
+    HOME: "{{ minikube_owner_home }}"
+  when: minikube_containerd_registry_rule.changed or minikube_profile_status.rc != 0
+
+- name: Install Nexus registry rule for Minikube containerd
+  ansible.builtin.command:
+    cmd: >-
+      {{ minikube_binary }} --profile {{ minikube_profile }} ssh --
+      sudo install -D -m 0644 /tmp/nexus-hosts.toml
+      /etc/containerd/certs.d/{{ minikube_insecure_registries | first }}/hosts.toml
+  become: true
+  become_user: "{{ minikube_owner }}"
+  environment:
+    HOME: "{{ minikube_owner_home }}"
+  when: minikube_containerd_registry_rule.changed or minikube_profile_status.rc != 0
+
+- name: Restart containerd after registry configuration change
+  ansible.builtin.command:
+    cmd: >-
+      {{ minikube_binary }} --profile {{ minikube_profile }} ssh --
+      sudo systemctl restart containerd
+  become: true
+  become_user: "{{ minikube_owner }}"
+  environment:
+    HOME: "{{ minikube_owner_home }}"
+  when: minikube_containerd_registry_rule.changed or minikube_profile_status.rc != 0
+
+- name: Wait for sandbox nodes to become Ready
+  ansible.builtin.command:
+    cmd: >-
+      {{ kubectl_binary }}
+      --kubeconfig={{ minikube_kubeconfig }}
+      wait --for=condition=Ready node --all --timeout=180s
+  become: true
+  become_user: "{{ minikube_owner }}"
+  environment:
+    HOME: "{{ minikube_owner_home }}"
+    KUBECONFIG: "{{ minikube_kubeconfig }}"
+  changed_when: false

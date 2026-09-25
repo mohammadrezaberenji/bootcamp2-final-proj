@@ -1,0 +1,28 @@
+---
+argocd_owner: "{{ kubernetes_admin_user }}"
+argocd_owner_home: "{{ kubernetes_admin_home }}"
+argocd_kubeconfig: "{{ kubernetes_kubeconfig }}"
+argocd_kubectl_binary: "{{ kubernetes_kubectl_binary }}"
+
+argocd_manifest_url: >-
+  https://raw.githubusercontent.com/argoproj/argo-cd/{{ argocd_version }}/manifests/install.yaml
+
+argocd_work_dir: "{{ argocd_owner_home }}/argocd-bootstrap"
+argocd_source_manifest: "{{ argocd_work_dir }}/install.yaml"
+argocd_rendered_manifest: "{{ argocd_work_dir }}/install-nexus.yaml"
+
+argocd_runtime_docker_config: "{{ argocd_owner_home }}/.docker/config.json"
+argocd_wait_timeout: "300s"
+
+
+argocd_service_accounts:
+  - argocd-application-controller
+  - argocd-applicationset-controller
+  - argocd-dex-server
+  - argocd-notifications-controller
+  - argocd-redis
+  - argocd-repo-server
+  - argocd-server
+
+argocd_serviceaccounts_manifest: >-
+  {{ argocd_work_dir }}/serviceaccounts-nexus.yaml
