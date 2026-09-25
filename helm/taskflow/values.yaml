@@ -9,6 +9,7 @@ backend:
   image:
     repository: nexus.server:8082/taskflow-backend
     tag: "1.0.0"
+    digest: ""
     pullPolicy: IfNotPresent
   service:
     port: 8000
@@ -25,6 +26,7 @@ frontend:
   image:
     repository: nexus.server:8082/taskflow-frontend
     tag: "1.0.0"
+    digest: ""
     pullPolicy: IfNotPresent
   service:
     port: 8080

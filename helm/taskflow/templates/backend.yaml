@@ -22,7 +22,11 @@ spec:
         {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
       containers:
         - name: backend
+          {{ if .Values.backend.image.digest }}
+          image: "{{ .Values.backend.image.repository }}@{{ .Values.backend.image.digest }}"
+          {{ else }}
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          {{ end }}
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.backend.service.port }}
