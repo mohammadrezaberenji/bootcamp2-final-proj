@@ -19,6 +19,8 @@ frontend:
     pullPolicy: IfNotPresent
 
 postgres:
+  persistence:
+    storageClass: standard
   image:
     repository: nexus.server:8084/library/postgres
     tag: "16.4-alpine"
