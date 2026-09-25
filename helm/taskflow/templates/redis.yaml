@@ -14,6 +14,8 @@ spec:
       labels:
         app: redis
     spec:
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
       containers:
         - name: redis
           image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
@@ -35,7 +37,7 @@ spec:
           command:
             - sh
             - -c
-            - exec redis-server --appendonly yes --requirepass "$REDIS_PASSWORD"
+            - exec redis-server --requirepass "$REDIS_PASSWORD"
 
           startupProbe:
             exec:
@@ -62,14 +64,7 @@ spec:
                 - redis-cli -a "$REDIS_PASSWORD" ping | grep PONG
             periodSeconds: 20
 
-          volumeMounts:
-            - name: redis-data
-              mountPath: /data
 
-      volumes:
-        - name: redis-data
-          persistentVolumeClaim:
-            claimName: {{ .Values.redis.persistence.existingClaim }}
 
 ---
 apiVersion: v1
