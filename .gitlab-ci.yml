@@ -1,5 +1,6 @@
 stages:
   - test
+  - quality
   - build
   - publish
 
@@ -38,6 +39,29 @@ frontend_lint_test:
     - npm ci
     - npm run lint
     - npm test
+
+sonarqube_check:
+  stage: quality
+  image:
+    name: $NEXUS_DOCKERHUB_PROXY/sonarsource/sonar-scanner-cli:12.2.0.4256_8.1.0
+    entrypoint: [""]
+  tags:
+    - docker-ci
+  variables:
+    GIT_DEPTH: "0"
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+  cache:
+    key: "sonar-${CI_PROJECT_ID}"
+
+    paths:
+      - .sonar/cache
+  script:
+    - sonar-scanner
+    - Dsonar.host.url="$SONAR_HOST_URL"
+    - Dsonar.token="$SONAR_TOKEN"
+    - Dsonar.qualitygate.wait=true
+    - Dsonar.qualitygate.timeout=300
+  allow_failure: false
 
 build_backend_image:
   stage: build
