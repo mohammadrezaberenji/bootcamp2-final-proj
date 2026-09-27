@@ -56,11 +56,12 @@ sonarqube_check:
     paths:
       - .sonar/cache
   script:
-    - sonar-scanner
-    - Dsonar.host.url="$SONAR_HOST_URL"
-    - Dsonar.token="$SONAR_TOKEN"
-    - Dsonar.qualitygate.wait=true
-    - Dsonar.qualitygate.timeout=300
+    - |
+      sonar-scanner \
+        -Dsonar.host.url="$SONAR_HOST_URL" \
+        -Dsonar.token="$SONAR_TOKEN" \
+        -Dsonar.qualitygate.wait=true \
+        -Dsonar.qualitygate.timeout=300 
   allow_failure: false
 
 build_backend_image:
