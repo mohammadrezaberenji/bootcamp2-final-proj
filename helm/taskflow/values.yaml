@@ -20,6 +20,11 @@ backend:
     limits:
       cpu: 500m
       memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 60
 
 frontend:
   replicaCount: 2
@@ -36,7 +41,10 @@ frontend:
       memory: 64Mi
     limits:
       cpu: 250m
-      memory: 256Mi
+      memory: 512Mi
+  vpa:
+    enabled: true
+    updateMode: "Auto"
 
 postgres:
   replicaCount: 1
@@ -89,3 +97,10 @@ config:
   DB_RETRY_DELAY_SECONDS: "3"
   LOG_LEVEL: "INFO"
   APP_VERSION: "1.0.0"
+
+ingress:
+  enabled: true
+  className: traefik
+  host: ""
+  path: /
+  pathType: Prefix
