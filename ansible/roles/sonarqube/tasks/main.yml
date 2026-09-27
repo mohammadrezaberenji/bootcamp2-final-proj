@@ -1,0 +1,86 @@
+---
+- name: Assert that the SonarQube database password is available
+  ansible.builtin.assert:
+    that:
+      - sonarqube_postgres_password is defined
+      - sonarqube_postgres_password | length >= 24
+    fail_msg: >-
+      Define sonarqube_postgres_password in the encrypted Ansible Vault file.
+  no_log: true
+
+- name: Configure Linux kernel limits required by SonarQube
+  ansible.builtin.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop:
+    - name: vm.max_map_count
+      value: "{{ sonarqube_vm_max_map_count }}"
+    - name: fs.file-max
+      value: "{{ sonarqube_fs_file_max }}"
+
+- name: Create SonarQube Compose directory
+  ansible.builtin.file:
+    path: "{{ sonarqube_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0750"
+
+- name: Render private SonarQube Compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ sonarqube_dir }}/compose.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+  register: sonarqube_compose
+  no_log: true
+
+- name: Check running SonarQube Compose services
+  ansible.builtin.command:
+    cmd: docker compose -f compose.yml ps --status running --services
+    chdir: "{{ sonarqube_dir }}"
+  become: true
+  become_user: "{{ ansible_user }}"
+  register: sonarqube_running_services
+  changed_when: false
+  failed_when: false
+
+- name: Start or reconcile SonarQube services
+  ansible.builtin.command:
+    cmd: docker compose -f compose.yml up -d
+    chdir: "{{ sonarqube_dir }}"
+  become: true
+  become_user: "{{ ansible_user }}"
+  when: >
+    sonarqube_compose.changed or
+    sonarqube_container_name not in sonarqube_running_services.stdout_lines or
+    sonarqube_postgres_container_name not in sonarqube_running_services.stdout_lines
+
+- name: Verify SonarQube services are running
+  ansible.builtin.command:
+    cmd: docker compose -f compose.yml ps --status running --services
+    chdir: "{{ sonarqube_dir }}"
+  become: true
+  become_user: "{{ ansible_user }}"
+  register: sonarqube_final_services
+  changed_when: false
+  failed_when: >
+    sonarqube_container_name not in sonarqube_final_services.stdout_lines or
+    sonarqube_postgres_container_name not in sonarqube_final_services.stdout_lines
+
+- name: Wait for SonarQube to become ready
+  ansible.builtin.uri:
+    url: "http://{{ sonarqube_bind_address }}:{{ sonarqube_host_port }}/api/system/status"
+    return_content: true
+    status_code: 200
+  register: sonarqube_system_status
+  until: >-
+    sonarqube_system_status.status | default(0) == 200 and
+    (sonarqube_system_status.content | default('')) is search('"status"\\s*:\\s*"UP"')
+  retries: 60
+  delay: 10
+  changed_when: false
+  failed_when: false

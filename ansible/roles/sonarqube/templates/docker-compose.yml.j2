@@ -1,0 +1,50 @@
+services:
+  sonarqube-postgres:
+    image: "{{ sonarqube_postgres_image }}"
+    container_name: "{{ sonarqube_postgres_container_name }}"
+    restart: "{{ sonarqube_restart_policy }}"
+    environment:
+      POSTGRES_DB: "{{ sonarqube_database_name }}"
+      POSTGRES_USER: "{{ sonarqube_database_user }}"
+      POSTGRES_PASSWORD: "{{ sonarqube_postgres_password }}"
+    volumes:
+      - sonarqube-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "{{ sonarqube_database_user }}" -d "{{ sonarqube_database_name }}"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    mem_limit: "512m"
+
+  sonarqube:
+    image: "{{ sonarqube_image }}"
+    container_name: "{{ sonarqube_container_name }}"
+    restart: "{{ sonarqube_restart_policy }}"
+    depends_on:
+      sonarqube-postgres:
+        condition: service_healthy
+    ports:
+      - "{{ sonarqube_bind_address }}:{{ sonarqube_host_port }}:9000"
+    environment:
+      SONAR_JDBC_URL: >-
+        jdbc:postgresql://{{ sonarqube_postgres_container_name }}:5432/{{ sonarqube_database_name }}
+      SONAR_JDBC_USERNAME: "{{ sonarqube_database_user }}"
+      SONAR_JDBC_PASSWORD: "{{ sonarqube_postgres_password }}"
+    volumes:
+      - sonarqube-data:/opt/sonarqube/data
+      - sonarqube-extensions:/opt/sonarqube/extensions
+      - sonarqube-logs:/opt/sonarqube/logs
+    ulimits:
+      nofile:
+        soft: 131072
+        hard: 131072
+    mem_limit: "{{ sonarqube_memory_limit }}"
+
+volumes:
+  sonarqube-postgres-data:
+  sonarqube-data:
+  sonarqube-extensions:
+  sonarqube-logs:

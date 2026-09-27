@@ -233,3 +233,14 @@ The Minikube sandbox role is separate: `playbooks/minikube-sandbox.yml` and
 `roles/minikube_sandbox/`. Production Kubeadm provisioning uses the cluster
 playbooks documented above; do not apply Minikube-specific variables to the
 three-node production cluster.
+
+## SonarQube quality analysis
+
+`playbooks/sonarqube.yml` runs the `sonarqube` role on the shared sandbox
+server. It deploys SonarQube and its PostgreSQL database with Docker Compose.
+The database password is loaded from the encrypted group Vault and must never
+be stored in this README, inventory, or CI configuration.
+
+Use the runbook for the required Vault variables, safe dashboard tunnel,
+GitLab Runner connectivity, CI variables, Quality Gate behaviour, and
+troubleshooting: [SonarQube setup manual](../docs/ansible/sonarqube-setup.md).

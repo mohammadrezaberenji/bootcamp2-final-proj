@@ -1,0 +1,7 @@
+---
+- name: Install SonarQube on the shared sandbox server
+  hosts: devops_server
+  become: true
+
+  roles:
+    - sonarqube

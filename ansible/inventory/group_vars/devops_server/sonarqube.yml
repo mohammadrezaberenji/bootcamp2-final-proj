@@ -1,0 +1,4 @@
+---
+sonarqube_bind_address: "172.17.0.1"
+sonarqube_host_port: "9000"
+sonarqube_memory_limit: "4g"

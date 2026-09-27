@@ -1,0 +1,19 @@
+---
+sonarqube_container_name: sonarqube
+sonarqube_image: "nexus.server:8084/library/sonarqube:26.9.0.129388-community"
+
+sonarqube_postgres_container_name: sonarqube-postgres
+sonarqube_postgres_image: "nexus.server:8084/library/postgres:16.4-alpine"
+
+sonarqube_dir: "/home/{{ ansible_user }}/sonarqube"
+sonarqube_bind_address: "127.0.0.1"
+sonarqube_host_port: "9000"
+
+sonarqube_database_name: sonarqube
+sonarqube_database_user: sonarqube
+
+sonarqube_restart_policy: "unless-stopped"
+sonarqube_memory_limit: "4g"
+
+sonarqube_vm_max_map_count: "524288"
+sonarqube_fs_file_max: "131072"
