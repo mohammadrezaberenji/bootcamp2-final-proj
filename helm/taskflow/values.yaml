@@ -1,9 +1,7 @@
 global:
   existingSecret: taskflow-secrets
-
   imagePullSecrets:
     - name: nexus-pull-credentials
-
 backend:
   replicaCount: 2
   image:
@@ -47,6 +45,8 @@ frontend:
     updateMode: "Auto"
 
 postgres:
+  customResource:
+    enabled: false
   replicaCount: 1
   image:
     repository: postgres
@@ -57,7 +57,6 @@ postgres:
   service:
     port: 5432
   persistence:
-    enabled: true
     storageClass: local-path
     size: 2Gi
   resources:

@@ -13,8 +13,8 @@ variables:
   NEXUS_DOCKERHUB_PROXY: nexus.server:8083
   NEXUS_HOSTED_REGISTRY: nexus.server:8082
 
-  #BACKEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow/backend:$CI_COMMIT_SHA
-  #FRONTEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow/frontend:$CI_COMMIT_SHA
+  # BACKEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow/backend:$CI_COMMIT_SHA
+  # FRONTEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow/frontend:$CI_COMMIT_SHA
 
   BACKEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow-backend:$CI_COMMIT_SHA
   FRONTEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow-frontend:$CI_COMMIT_SHA
@@ -23,7 +23,7 @@ backend_lint_test:
   stage: test
   image: $NEXUS_DOCKERHUB_PROXY/library/python:3.12-slim
   tags:
-    - docker-ci
+    - docker-runner
   script:
     - python -m pip install --no-cache-dir -r backend/requirements.txt ruff pytest httpx
     - ruff check backend

@@ -1,3 +1,4 @@
+{{- if .Values.postgres.customResource.enabled }}
 apiVersion: taskflow.io/v1alpha1
 kind: TaskFlowDatabase
 metadata:
@@ -7,3 +8,4 @@ spec:
   databaseName: {{ .Values.postgres.database | quote }}
   engine: postgresql
   storageSize: {{ .Values.postgres.persistence.size | quote }}
+{{- end }}
