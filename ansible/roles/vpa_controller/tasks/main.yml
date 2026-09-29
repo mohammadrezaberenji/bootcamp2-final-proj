@@ -1,0 +1,257 @@
+---
+- name: Create VPA bootstrap directory
+  ansible.builtin.file:
+    path: "{{ vpa_controller_work_dir }}"
+    state: directory
+    owner: "{{ vpa_controller_owner }}"
+    group: "{{ vpa_controller_owner }}"
+    mode: "0700"
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+
+- name: Download the pinned VPA CRD manifest
+  ansible.builtin.get_url:
+    url: "{{ vpa_controller_manifest_base_url }}/vpa-v1-crd-gen.yaml"
+    dest: "{{ vpa_controller_work_dir }}/vpa-v1-crd-gen.yaml"
+    owner: "{{ vpa_controller_owner }}"
+    group: "{{ vpa_controller_owner }}"
+    mode: "0600"
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+
+- name: Apply the VPA CRD
+  ansible.builtin.command:
+    cmd: >-
+      {{ vpa_controller_kubectl_binary }}
+      --kubeconfig={{ vpa_controller_kubeconfig }}
+      --context={{ vpa_controller_context }}
+      apply --server-side
+      --field-manager=taskflow-vpa-ansible
+      -f {{ vpa_controller_work_dir }}/vpa-v1-crd-gen.yaml
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+  environment:
+    HOME: "{{ vpa_controller_owner_home }}"
+  register: vpa_controller_crd_apply
+
+- name: Wait for the VerticalPodAutoscaler CRD
+  ansible.builtin.command:
+    cmd: >-
+      {{ vpa_controller_kubectl_binary }}
+      --kubeconfig={{ vpa_controller_kubeconfig }}
+      --context={{ vpa_controller_context }}
+      wait --for=condition=Established
+      crd/verticalpodautoscalers.autoscaling.k8s.io
+      --timeout=120s
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+  environment:
+    HOME: "{{ vpa_controller_owner_home }}"
+  changed_when: false
+
+
+- name: Download VPA RBAC and controller manifests
+  ansible.builtin.get_url:
+    url: "{{ vpa_controller_manifest_base_url }}/{{ item }}"
+    dest: "{{ vpa_controller_work_dir }}/{{ item }}"
+    owner: "{{ vpa_controller_owner }}"
+    group: "{{ vpa_controller_owner }}"
+    mode: "0600"
+  loop:
+    - vpa-rbac.yaml
+    - recommender-deployment.yaml
+    - updater-deployment.yaml
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+
+- name: Rewrite VPA controller images to use Nexus
+  ansible.builtin.replace:
+    path: "{{ vpa_controller_work_dir }}/{{ item }}"
+    regexp: 'registry\.k8s\.io/autoscaling/'
+    replace: "{{ vpa_controller_image_registry }}/autoscaling/"
+  loop:
+    - recommender-deployment.yaml
+    - updater-deployment.yaml
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+
+- name: Apply VPA RBAC
+  ansible.builtin.command:
+    cmd: >-
+      {{ vpa_controller_kubectl_binary }}
+      --kubeconfig={{ vpa_controller_kubeconfig }}
+      --context={{ vpa_controller_context }}
+      apply --server-side
+      --field-manager=taskflow-vpa-ansible
+      -f {{ vpa_controller_work_dir }}/vpa-rbac.yaml
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+  environment:
+    HOME: "{{ vpa_controller_owner_home }}"
+
+- name: Attach Nexus credentials to VPA service accounts
+  ansible.builtin.command:
+    cmd: >-
+      {{ vpa_controller_kubectl_binary }}
+      --kubeconfig={{ vpa_controller_kubeconfig }}
+      --context={{ vpa_controller_context }}
+      --namespace={{ vpa_controller_namespace }}
+      patch serviceaccount {{ item }}
+      --type=merge
+      --patch '{"imagePullSecrets":[{"name":"{{ vpa_controller_image_pull_secret }}"}]}'
+  loop:
+    - vpa-recommender
+    - vpa-updater
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+  environment:
+    HOME: "{{ vpa_controller_owner_home }}"
+
+- name: Apply VPA recommender and updater
+  ansible.builtin.command:
+    cmd: >-
+      {{ vpa_controller_kubectl_binary }}
+      --kubeconfig={{ vpa_controller_kubeconfig }}
+      --context={{ vpa_controller_context }}
+      apply --server-side
+      --field-manager=taskflow-vpa-ansible
+      -f {{ vpa_controller_work_dir }}/{{ item }}
+  loop:
+    - recommender-deployment.yaml
+    - updater-deployment.yaml
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+  environment:
+    HOME: "{{ vpa_controller_owner_home }}"
+- name: Create VPA webhook certificate directory
+  ansible.builtin.file:
+    path: "{{ vpa_controller_work_dir }}/tls"
+    state: directory
+    owner: "{{ vpa_controller_owner }}"
+    group: "{{ vpa_controller_owner }}"
+    mode: "0700"
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+
+- name: Render VPA webhook OpenSSL configuration
+  ansible.builtin.template:
+    src: vpa-webhook-openssl.conf.j2
+    dest: "{{ vpa_controller_work_dir }}/tls/server.conf"
+    owner: "{{ vpa_controller_owner }}"
+    group: "{{ vpa_controller_owner }}"
+    mode: "0600"
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+
+- name: Generate VPA webhook TLS certificates
+  ansible.builtin.shell: |
+    set -euo pipefail
+    cd "{{ vpa_controller_work_dir }}/tls"
+
+    openssl genrsa -out caKey.pem 2048
+    openssl req -x509 -new -nodes \
+      -key caKey.pem \
+      -days 3650 \
+      -out caCert.pem \
+      -subj "/CN=vpa_webhook_ca"
+
+    openssl genrsa -out serverKey.pem 2048
+    openssl req -new \
+      -key serverKey.pem \
+      -out server.csr \
+      -subj "/CN=vpa-webhook.kube-system.svc" \
+      -config server.conf
+
+    openssl x509 -req \
+      -in server.csr \
+      -CA caCert.pem \
+      -CAkey caKey.pem \
+      -CAcreateserial \
+      -out serverCert.pem \
+      -days 3650 \
+      -extensions v3_req \
+      -extfile server.conf
+  args:
+    creates: "{{ vpa_controller_work_dir }}/tls/serverCert.pem"
+    executable: /bin/bash
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+  no_log: true
+
+- name: Create or update the VPA webhook TLS Secret
+  ansible.builtin.shell: |
+    set -o pipefail
+    {{ vpa_controller_kubectl_binary }} \
+      --kubeconfig={{ vpa_controller_kubeconfig }} \
+      --context={{ vpa_controller_context }} \
+      --namespace={{ vpa_controller_namespace }} \
+      create secret generic vpa-tls-certs \
+      --from-file=caKey.pem={{ vpa_controller_work_dir }}/tls/caKey.pem \
+      --from-file=caCert.pem={{ vpa_controller_work_dir }}/tls/caCert.pem \
+      --from-file=serverKey.pem={{ vpa_controller_work_dir }}/tls/serverKey.pem \
+      --from-file=serverCert.pem={{ vpa_controller_work_dir }}/tls/serverCert.pem \
+      --dry-run=client -o yaml | \
+    {{ vpa_controller_kubectl_binary }} \
+      --kubeconfig={{ vpa_controller_kubeconfig }} \
+      --context={{ vpa_controller_context }} \
+      apply -f -
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+  environment:
+    HOME: "{{ vpa_controller_owner_home }}"
+  no_log: true
+
+- name: Download VPA admission controller manifests
+  ansible.builtin.get_url:
+    url: "{{ vpa_controller_manifest_base_url }}/{{ item }}"
+    dest: "{{ vpa_controller_work_dir }}/{{ item }}"
+    owner: "{{ vpa_controller_owner }}"
+    group: "{{ vpa_controller_owner }}"
+    mode: "0600"
+  loop:
+    - admission-controller-service.yaml
+    - admission-controller-deployment.yaml
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+
+- name: Rewrite VPA admission controller image to use Nexus
+  ansible.builtin.replace:
+    path: "{{ vpa_controller_work_dir }}/admission-controller-deployment.yaml"
+    regexp: 'registry\.k8s\.io/autoscaling/'
+    replace: "{{ vpa_controller_image_registry }}/autoscaling/"
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+
+- name: Attach Nexus credentials to VPA admission controller service account
+  ansible.builtin.command:
+    cmd: >-
+      {{ vpa_controller_kubectl_binary }}
+      --kubeconfig={{ vpa_controller_kubeconfig }}
+      --context={{ vpa_controller_context }}
+      --namespace={{ vpa_controller_namespace }}
+      patch serviceaccount vpa-admission-controller
+      --type=merge
+      --patch '{"imagePullSecrets":[{"name":"{{ vpa_controller_image_pull_secret }}"}]}'
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+  environment:
+    HOME: "{{ vpa_controller_owner_home }}"
+
+- name: Apply VPA admission controller Service and Deployment
+  ansible.builtin.command:
+    cmd: >-
+      {{ vpa_controller_kubectl_binary }}
+      --kubeconfig={{ vpa_controller_kubeconfig }}
+      --context={{ vpa_controller_context }}
+      apply --server-side
+      --field-manager=taskflow-vpa-ansible
+      -f {{ vpa_controller_work_dir }}/{{ item }}
+  loop:
+    - admission-controller-service.yaml
+    - admission-controller-deployment.yaml
+  become: true
+  become_user: "{{ vpa_controller_owner }}"
+  environment:
+    HOME: "{{ vpa_controller_owner_home }}"
