@@ -23,7 +23,7 @@ backend_lint_test:
   stage: test
   image: $NEXUS_DOCKERHUB_PROXY/library/python:3.12-slim
   tags:
-    - docker-runner
+    - docker-ci
   script:
     - python -m pip install --no-cache-dir -r backend/requirements.txt ruff pytest httpx
     - ruff check backend
