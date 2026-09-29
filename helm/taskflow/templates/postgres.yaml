@@ -5,9 +5,8 @@ metadata:
   labels:
     app: postgres
 spec:
-  serviceName: postgres
+  serviceName: postgres-headless
   replicas: {{ .Values.postgres.replicaCount }}
-
   selector:
     matchLabels:
       app: postgres

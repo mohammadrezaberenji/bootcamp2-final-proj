@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
+  annotations:
+    kubernetes.io/change-cause: {{ printf "backend image: %s:%s" .Values.backend.image.repository (.Values.backend.image.tag | toString) | quote }}
 spec:
   {{- if not .Values.backend.autoscaling.enabled }}
   replicas: {{ .Values.backend.replicaCount }}

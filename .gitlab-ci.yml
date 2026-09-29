@@ -78,6 +78,30 @@ build_backend_image:
       - backend-image.tar
     expire_in: 1 hour
 
+
+sonarqube_check:
+  stage: quality
+  image:
+    name: $NEXUS_DOCKERHUB_PROXY/sonarsource/sonar-scanner-cli:12.2.0.4256_8.1.0
+    entrypoint: [""]
+  tags:
+    - docker-ci
+  variables:
+    GIT_DEPTH: "0"
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+  cache:
+    key: "sonar-${CI_PROJECT_ID}"
+    paths:
+      - .sonar/cache
+  script:
+    - |
+      sonar-scanner \
+        -Dsonar.host.url="$SONAR_HOST_URL" \
+        -Dsonar.token="$SONAR_TOKEN" \
+        -Dsonar.qualitygate.wait=true \
+        -Dsonar.qualitygate.timeout=300
+  allow_failure: false
+
 publish_backend_image:
   stage: publish
   image: $NEXUS_DOCKERHUB_PROXY/library/docker:29.8.1-cli
@@ -129,6 +153,7 @@ update_gitops:
     - publish_backend_image
     - publish_frontend_image
   rules:
+    # - when: never
     - if: '$CI_COMMIT_BRANCH == "feature/kuber-cluster"'
   before_script:
     - apk add --no-cache git

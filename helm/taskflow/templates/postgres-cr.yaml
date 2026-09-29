@@ -1,0 +1,9 @@
+apiVersion: taskflow.io/v1alpha1
+kind: TaskFlowDatabase
+metadata:
+  name: postgres
+  namespace: {{ .Release.Namespace }}
+spec:
+  databaseName: {{ .Values.postgres.database | quote }}
+  engine: postgresql
+  storageSize: {{ .Values.postgres.persistence.size | quote }}
