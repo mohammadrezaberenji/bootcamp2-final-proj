@@ -1,0 +1,7 @@
+---
+- name: Install Vertical Pod Autoscaler controller
+  hosts: devops_server
+  gather_facts: false
+
+  roles:
+    - vpa_controller

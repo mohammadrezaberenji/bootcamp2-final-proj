@@ -1,0 +1,18 @@
+---
+vpa_controller_version: "1.7.1"
+
+vpa_controller_owner: "k8s-admin"
+vpa_controller_owner_home: "/home/k8s-admin"
+
+vpa_controller_kubectl_binary: "/usr/local/bin/kubectl"
+vpa_controller_kubeconfig: "/home/k8s-admin/.kube/config"
+vpa_controller_context: "taskflow-sandbox"
+
+vpa_controller_namespace: "kube-system"
+vpa_controller_work_dir: "{{ vpa_controller_owner_home }}/vpa-controller-bootstrap"
+
+vpa_controller_manifest_base_url: >-
+  https://raw.githubusercontent.com/kubernetes/autoscaler/vertical-pod-autoscaler-{{ vpa_controller_version }}/vertical-pod-autoscaler/deploy
+
+vpa_controller_image_registry: "nexus.server:8084"
+vpa_controller_image_pull_secret: "nexus-pull-credentials"

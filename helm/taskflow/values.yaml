@@ -42,7 +42,7 @@ frontend:
       memory: 512Mi
   vpa:
     enabled: true
-    updateMode: "Auto"
+    updateMode: "Recreate"
 
 postgres:
   customResource:
