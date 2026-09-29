@@ -1,0 +1,53 @@
+---
+- name: Ensure required kernel modules are configured
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k8s.conf
+    content: |
+      overlay
+      br_netfilter
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Load overlay kernel module
+  ansible.builtin.command: modprobe overlay
+  changed_when: false
+
+- name: Load br_netfilter kernel module
+  ansible.builtin.command: modprobe br_netfilter
+  changed_when: false
+
+- name: Configure Kubernetes sysctl parameters
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-kubernetes-cri.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+    owner: root
+    group: root
+    mode: "0644"
+  register: kubernetes_sysctl
+
+- name: Apply Kubernetes sysctl parameters
+  ansible.builtin.command: sysctl --system
+  when: kubernetes_sysctl.changed
+
+- name: Configure DNS resolvers
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    content: |
+      nameserver 192.168.1.1
+      nameserver 8.8.8.8
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure Kubernetes node hostnames
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} ANSIBLE MANAGED KUBERNETES HOSTS"
+    block: |
+      10.10.20.11 controller
+      10.10.10.11 worker1
+      10.10.10.12 worker2

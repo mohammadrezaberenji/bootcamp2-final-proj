@@ -1,0 +1,13 @@
+argocd_version: "v3.5.3"
+argocd_namespace: "argocd"
+argocd_registry: "nexus.server:8084"
+argocd_image_pull_secret: "nexus-pull-credentials"
+
+argocd_upstream_image: "quay.io/argoproj/argocd:v3.5.3"
+argocd_nexus_image: "nexus.server:8084/argoproj/argocd:v3.5.3"
+
+argocd_dex_upstream_image: "ghcr.io/dexidp/dex:v2.45.1"
+argocd_dex_nexus_image: "nexus.server:8084/dexidp/dex:v2.45.1"
+
+argocd_redis_upstream_image: "public.ecr.aws/docker/library/redis:8.2.3-alpine"
+argocd_redis_nexus_image: "nexus.server:8084/library/redis:8.2.3-alpine"

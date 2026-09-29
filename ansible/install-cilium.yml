@@ -1,0 +1,7 @@
+---
+- name: Install Cilium CNI
+  hosts: control_plane
+  become: true
+
+  roles:
+    - cilium

@@ -1,0 +1,57 @@
+---
+- name: Install Helm prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gpg
+    state: present
+    update_cache: true
+
+- name: Ensure APT keyrings directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download Helm repository signing key
+  ansible.builtin.get_url:
+    url: https://packages.buildkite.com/helm-linux/helm-debian/gpgkey
+    dest: /tmp/helm-signing-key.asc
+    mode: "0644"
+
+- name: Convert Helm signing key to GPG keyring
+  ansible.builtin.command:
+    cmd: >
+      gpg --dearmor --yes
+      --output /etc/apt/keyrings/helm.gpg
+      /tmp/helm-signing-key.asc
+  changed_when: false
+
+- name: Configure Helm APT repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/helm-stable-debian.list
+    content: |
+      deb [signed-by=/etc/apt/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Unhold Helm before version change
+  ansible.builtin.dpkg_selections:
+    name: helm
+    selection: install
+
+- name: Install pinned Helm version
+  ansible.builtin.apt:
+    name: "helm=3.22.0-1"
+    state: present
+    update_cache: true
+    allow_downgrade: true
+
+- name: Hold Helm version
+  ansible.builtin.dpkg_selections:
+    name: helm
+    selection: hold

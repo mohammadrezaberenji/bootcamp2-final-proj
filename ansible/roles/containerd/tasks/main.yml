@@ -1,0 +1,65 @@
+---
+- name: Check containerd service
+  ansible.builtin.service_facts:
+
+- name: Ensure containerd is installed
+  ansible.builtin.assert:
+    that:
+      - "'containerd.service' in ansible_facts.services"
+    fail_msg: "containerd is not installed on {{ inventory_hostname }}"
+
+- name: Upgrade containerd to Kubernetes compatible version
+  ansible.builtin.apt:
+    name: "containerd.io=2.3.5-1~debian.13~trixie"
+    state: present
+    update_cache: true
+  notify: Restart containerd
+
+- name: Ensure containerd systemd override directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/containerd.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure SOCKS proxy for containerd
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/containerd.service.d/proxy.conf
+    content: |
+      [Service]
+      Environment="HTTP_PROXY=socks5h://127.0.0.1:1717"
+      Environment="HTTPS_PROXY=socks5h://127.0.0.1:1717"
+      Environment="NO_PROXY=127.0.0.1,localhost,10.10.10.0/24,10.10.20.0/24,10.96.0.0/12,10.200.0.0/16"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart containerd
+
+- name: Generate containerd default configuration
+  ansible.builtin.command:
+    cmd: containerd config default
+  register: containerd_default_config
+  changed_when: false
+  check_mode: false
+
+- name: Configure containerd for Kubernetes
+  ansible.builtin.copy:
+    dest: /etc/containerd/config.toml
+    content: >-
+      {{
+        containerd_default_config.stdout
+        | regex_replace(
+            'SystemdCgroup = false',
+            'SystemdCgroup = true'
+          )
+        | regex_replace(
+            'sandbox_image = "registry.k8s.io/pause:3.8"',
+            'sandbox_image = "registry.k8s.io/pause:3.10.2"'
+          )
+      }}
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Restart containerd

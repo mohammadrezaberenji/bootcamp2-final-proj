@@ -1,0 +1,45 @@
+---
+- name: Kubernetes nodes preflight check
+  hosts: k8s_cluster
+  gather_facts: true
+
+  tasks:
+    - name: Show node information
+      ansible.builtin.debug:
+        msg:
+          - "Hostname: {{ ansible_hostname }}"
+          - "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Kernel: {{ ansible_kernel }}"
+          - "Architecture: {{ ansible_architecture }}"
+          - "Default IPv4: {{ ansible_default_ipv4.address | default('N/A') }}"
+
+    - name: Check swap
+      ansible.builtin.command: swapon --show
+      register: swap_status
+      changed_when: false
+
+    - name: Show swap status
+      ansible.builtin.debug:
+        msg: >-
+          {{ swap_status.stdout
+             if swap_status.stdout | length > 0
+             else 'Swap is disabled' }}
+
+    - name: Check required kernel modules
+      ansible.builtin.shell: |
+        lsmod | grep -E '^(overlay|br_netfilter)\b' || true
+      register: kernel_modules
+      changed_when: false
+
+    - name: Show required kernel modules
+      ansible.builtin.debug:
+        var: kernel_modules.stdout_lines
+
+    - name: Check IPv4 forwarding
+      ansible.builtin.command: sysctl -n net.ipv4.ip_forward
+      register: ip_forward
+      changed_when: false
+
+    - name: Show IPv4 forwarding
+      ansible.builtin.debug:
+        msg: "net.ipv4.ip_forward={{ ip_forward.stdout }}"

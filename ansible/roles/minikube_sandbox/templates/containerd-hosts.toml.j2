@@ -1,0 +1,4 @@
+server = "http://{{ minikube_insecure_registries | first }}"
+
+[host."http://{{ minikube_insecure_registries | first }}"]
+  capabilities = ["pull", "resolve"]

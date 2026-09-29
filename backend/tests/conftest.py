@@ -12,12 +12,13 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_db_file.as_posix()}"
 os.environ.pop("REDIS_HOST", None)
 os.environ["DB_CONNECT_RETRIES"] = "1"
 
-# Make the "Back" package importable when pytest runs from any directory
+# Make the "backend" package importable when pytest runs from any directory
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from Back.database import Base, engine  # noqa: E402
-from Back.main import app  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+
+from backend.database import Base, engine  # noqa: E402
+from backend.main import app  # noqa: E402
 
 
 @pytest.fixture()

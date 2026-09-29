@@ -20,7 +20,7 @@ RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copy backend source
-COPY . /app/Back
+COPY . /app/backend
 
 # Create and use a non-root user
 RUN groupadd --gid 10001 app \
@@ -43,7 +43,7 @@ HEALTHCHECK \
     --retries=3 \
     CMD curl --fail --silent http://localhost:8000/health/live || exit 1
 
-CMD ["uvicorn", "Back.main:app", \
+CMD ["uvicorn", "backend.main:app", \
      "--host", "0.0.0.0", \
      "--port", "8000", \
      "--proxy-headers", \

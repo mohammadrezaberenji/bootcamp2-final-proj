@@ -1,0 +1,9 @@
+---
+- name: Prepare Kubernetes nodes
+  hosts: k8s_cluster
+  become: true
+
+  roles:
+    - k8s_prerequisites
+    - containerd
+    - kubernetes_packages

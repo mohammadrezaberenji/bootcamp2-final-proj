@@ -1,0 +1,17 @@
+minikube_owner: "k8s-admin"
+minikube_profile: "taskflow-sandbox"
+minikube_driver: "docker"
+
+minikube_cpus: 2
+minikube_memory: "4096mb"
+minikube_disk_size: "20g"
+
+minikube_insecure_registries:
+  - "nexus.server:8084"
+
+taskflow_sandbox_namespace: "taskflow-sandbox"
+
+kubernetes_admin_user: "k8s-admin"
+kubernetes_admin_home: "/home/k8s-admin"
+kubernetes_kubeconfig: "/home/k8s-admin/.kube/config"
+kubernetes_kubectl_binary: "/usr/local/bin/kubectl"

@@ -1,0 +1,9 @@
+apiVersion: taskflow.io/v1alpha1
+kind: TaskFlowDatabase
+metadata:
+  name: postgres
+  namespace: taskflow
+spec:
+  databaseName: tasks
+  engine: postgresql
+  storageSize: 2Gi

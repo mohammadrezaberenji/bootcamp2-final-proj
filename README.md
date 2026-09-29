@@ -10,6 +10,11 @@ For Ubuntu setup and the verified local commands, see [Local development](docs/l
 
 The shared GitLab Runner Ansible role, inventory guidance, and run commands are documented in [ansible/README.md](ansible/README.md).
 
+For Argo CD installation, Nexus registry access, and GitOps bootstrap, see the [Argo CD setup manual](docs/ansible/argocd-setup.md).
+
+For SonarQube installation, GitLab CI static analysis, and the Quality Gate,
+see the [SonarQube setup manual](docs/ansible/sonarqube-setup.md).
+
 | Component | Technology | Location |
 |-----------|------------|----------|
 | Backend   | Python 3.11+ / FastAPI / SQLAlchemy | `backend/` |

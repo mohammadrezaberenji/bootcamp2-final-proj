@@ -1,0 +1,22 @@
+
+
+minikube_owner: k8s-admin
+
+minikube_owner_shell: /bin/bash
+
+minikube_binary: /usr/local/bin/minikube
+kubectl_binary: /usr/local/bin/kubectl
+
+minikube_owner_home: "/home/{{ minikube_owner }}"
+minikube_kube_dir: "{{ minikube_owner_home }}/.kube"
+minikube_kubeconfig: "{{ minikube_kube_dir }}/config"
+
+minikube_profile: taskflow-sandbox
+minikube_driver: docker
+minikube_cpus: 2
+minikube_memory: "4096mb"
+minikube_disk_size: "20g"
+
+minikube_insecure_registries: []
+
+minikube_state: started

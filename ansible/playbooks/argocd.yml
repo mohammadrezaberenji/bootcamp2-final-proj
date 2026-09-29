@@ -1,0 +1,7 @@
+---
+- name: Install ArcoCD in the TaskFlow sandbox 
+  hosts: devops_server
+  become: true
+
+  roles:
+    - argocd 

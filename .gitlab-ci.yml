@@ -1,8 +1,9 @@
 stages:
   - test
+  - quality
   - build
   - publish
-
+  - update_gitops
 
 variables:
   DOCKER_BUILDKIT: "1"
@@ -12,17 +13,19 @@ variables:
   NEXUS_DOCKERHUB_PROXY: nexus.server:8083
   NEXUS_HOSTED_REGISTRY: nexus.server:8082
 
-  BACKEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow/backend:$CI_COMMIT_SHA
-  FRONTEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow/frontend:$CI_COMMIT_SHA
+  # BACKEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow/backend:$CI_COMMIT_SHA
+  # FRONTEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow/frontend:$CI_COMMIT_SHA
+
+  BACKEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow-backend:$CI_COMMIT_SHA
+  FRONTEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow-frontend:$CI_COMMIT_SHA
 
 backend_lint_test:
   stage: test
   image: $NEXUS_DOCKERHUB_PROXY/library/python:3.12-slim
   tags:
-    - docker-ci
+    - docker-runner
   script:
     - python -m pip install --no-cache-dir -r backend/requirements.txt ruff pytest httpx
-    - test -e Back || ln -s backend Back
     - ruff check backend
     - python -m pytest backend/tests
 
@@ -50,6 +53,30 @@ build_backend_image:
     paths:
       - backend-image.tar
     expire_in: 1 hour
+
+
+sonarqube_check:
+  stage: quality
+  image:
+    name: $NEXUS_DOCKERHUB_PROXY/sonarsource/sonar-scanner-cli:12.2.0.4256_8.1.0
+    entrypoint: [""]
+  tags:
+    - docker-ci
+  variables:
+    GIT_DEPTH: "0"
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+  cache:
+    key: "sonar-${CI_PROJECT_ID}"
+    paths:
+      - .sonar/cache
+  script:
+    - |
+      sonar-scanner \
+        -Dsonar.host.url="$SONAR_HOST_URL" \
+        -Dsonar.token="$SONAR_TOKEN" \
+        -Dsonar.qualitygate.wait=true \
+        -Dsonar.qualitygate.timeout=300
+  allow_failure: false
 
 publish_backend_image:
   stage: publish
@@ -93,11 +120,42 @@ publish_frontend_image:
     - docker push "$FRONTEND_IMAGE"  
 
 
+update_gitops:
+  stage: update_gitops
+  image: $NEXUS_DOCKERHUB_PROXY/library/alpine:3.21
+  tags:
+    - docker-ci
+  needs:
+    - publish_backend_image
+    - publish_frontend_image
+  rules:
+    # - when: never
+    - if: '$CI_COMMIT_BRANCH == "feature/kuber-cluster"'
+  before_script:
+    - apk add --no-cache git
+  script:
+    - |
+      set -eu
 
+      git config user.name "GitLab CI"
+      git config user.email "gitlab-ci@example.local"
 
+      git fetch origin feature/kuber-cluster
+      git checkout -B feature/kuber-cluster origin/feature/kuber-cluster
 
+      sed -i "/^backend:/,/^frontend:/ s/^    tag:.*/    tag: \"$CI_COMMIT_SHA\"/" helm/taskflow/values.yaml
+      sed -i "/^frontend:/,/^postgres:/ s/^    tag:.*/    tag: \"$CI_COMMIT_SHA\"/" helm/taskflow/values.yaml
 
+      git add helm/taskflow/values.yaml
 
+      if git diff --cached --quiet; then
+        echo "No GitOps changes"
+        exit 0
+      fi
 
+      git commit -m "ci: update Helm image tags to $CI_COMMIT_SHORT_SHA [skip ci]"
 
+      git remote set-url origin \
+        "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
 
+      git push origin HEAD:feature/kuber-cluster

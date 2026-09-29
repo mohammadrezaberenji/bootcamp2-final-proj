@@ -1,0 +1,26 @@
+---
+- name: Generate Kubernetes join command
+  hosts: control_plane
+  become: true
+  tasks:
+    - name: Generate worker join command
+      ansible.builtin.command:
+        cmd: kubeadm token create --print-join-command
+      register: join_command
+      changed_when: false
+
+    - name: Store join command
+      ansible.builtin.set_fact:
+        kubeadm_join_command: "{{ join_command.stdout }}"
+
+- name: Join Kubernetes workers
+  hosts: workers
+  become: true
+  tasks:
+    - name: Join worker to Kubernetes cluster
+      ansible.builtin.command:
+        cmd: >-
+          {{ hostvars[groups['control_plane'][0]].kubeadm_join_command }}
+          --cri-socket unix:///run/containerd/containerd.sock
+      args:
+        creates: /etc/kubernetes/kubelet.conf

@@ -1,0 +1,131 @@
+
+---
+- name: Check Kubernetes node services
+  hosts: k8s_cluster
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Check containerd service
+      ansible.builtin.command:
+        cmd: systemctl is-active containerd
+      register: containerd_status
+      changed_when: false
+      failed_when: false
+
+    - name: Check kubelet service
+      ansible.builtin.command:
+        cmd: systemctl is-active kubelet
+      register: kubelet_status
+      changed_when: false
+      failed_when: false
+
+    - name: Check SOCKS proxy service
+      ansible.builtin.command:
+        cmd: systemctl is-active socks-proxy
+      register: socks_proxy_status
+      changed_when: false
+      failed_when: false
+
+    - name: Show node service health
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "containerd: {{ containerd_status.stdout }}"
+          - "kubelet: {{ kubelet_status.stdout }}"
+          - "socks-proxy: {{ socks_proxy_status.stdout }}"
+
+    - name: Fail if a required service is not active
+      ansible.builtin.assert:
+        that:
+          - containerd_status.stdout == "active"
+          - kubelet_status.stdout == "active"
+          - socks_proxy_status.stdout == "active"
+        fail_msg: "One or more required services are not active on {{ inventory_hostname }}"
+        success_msg: "Required services are healthy on {{ inventory_hostname }}"
+
+
+- name: Check Kubernetes cluster health
+  hosts: control_plane
+  become: true
+  gather_facts: false
+
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+
+  tasks:
+    - name: Wait for Kubernetes API server
+      ansible.builtin.command:
+        cmd: kubectl get nodes
+      register: kubectl_api
+      changed_when: false
+      retries: 12
+      delay: 5
+      until: kubectl_api.rc == 0
+
+    - name: Get Kubernetes nodes
+      ansible.builtin.command:
+        cmd: kubectl get nodes -o wide
+      register: kubernetes_nodes
+      changed_when: false
+
+    - name: Show Kubernetes nodes
+      ansible.builtin.debug:
+        var: kubernetes_nodes.stdout_lines
+
+    - name: Get kube-system pods
+      ansible.builtin.command:
+        cmd: kubectl -n kube-system get pods -o wide
+      register: kube_system_pods
+      changed_when: false
+
+    - name: Show kube-system pods
+      ansible.builtin.debug:
+        var: kube_system_pods.stdout_lines
+
+    - name: Check for unhealthy kube-system pods
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          kubectl -n kube-system get pods --no-headers |
+          awk '$3 != "Running" && $3 != "Completed" { print; bad=1 } END { exit bad }'
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Check that all kube-system pod containers are Ready
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          kubectl -n kube-system get pods --no-headers |
+          awk '
+          {
+            split($2, ready, "/")
+            if (ready[1] != ready[2]) {
+              print
+              bad=1
+            }
+          }
+          END { exit bad }'
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Get Cilium node IPAM allocations
+      ansible.builtin.command:
+        cmd: >-
+          kubectl get ciliumnodes
+          -o custom-columns=NAME:.metadata.name,CIDR:.spec.ipam.podCIDRs[*]
+      register: cilium_nodes
+      changed_when: false
+
+    - name: Show Cilium IPAM allocations
+      ansible.builtin.debug:
+        var: cilium_nodes.stdout_lines
+
+    - name: Check that all Kubernetes nodes are Ready
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          kubectl get nodes --no-headers |
+          awk '$2 != "Ready" { print; bad=1 } END { exit bad }'
+        executable: /bin/bash
+      changed_when: false

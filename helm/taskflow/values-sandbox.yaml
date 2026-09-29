@@ -1,0 +1,37 @@
+global:
+  existingSecret: taskflow-secrets
+
+  imagePullSecrets:
+    - name: nexus-pull-credentials
+
+backend:
+  replicaCount: 2
+  image:
+    digest: "sha256:40a6f717eab918ac0f30dd18446d5fdf932c0610ef861f08d6dbfefa2756adf0"
+    repository: nexus.server:8084/taskflow-backend
+    pullPolicy: IfNotPresent
+
+frontend:
+  replicaCount: 2
+  image:
+    digest: "sha256:59476239928ff384e9818c3ff21ee80a66ce8ec455f96b56da6cc8e67aadd9e3"
+    repository: nexus.server:8084/taskflow-frontend
+    pullPolicy: IfNotPresent
+
+postgres:
+  persistence:
+    storageClass: standard
+  image:
+    repository: nexus.server:8084/library/postgres
+    tag: "16.4-alpine"
+    pullPolicy: IfNotPresent
+
+redis:
+  image:
+    repository: nexus.server:8084/library/redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+
+config:
+  APP_VERSION: "sandbox"
+  LOG_LEVEL: "INFO"

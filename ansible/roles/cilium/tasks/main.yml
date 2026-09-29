@@ -1,0 +1,33 @@
+---
+- name: Install Python dependencies for Kubernetes modules
+  ansible.builtin.apt:
+    name:
+      - python3-yaml
+    state: present
+    update_cache: true
+
+- name: Add Cilium Helm repository
+  kubernetes.core.helm_repository:
+    name: cilium
+    repo_url: https://helm.cilium.io/
+
+- name: Install Cilium
+  kubernetes.core.helm:
+    name: cilium
+    chart_ref: cilium/cilium
+    chart_version: "1.20.2"
+    release_namespace: kube-system
+    kubeconfig: /etc/kubernetes/admin.conf
+    values:
+      routingMode: tunnel
+      tunnelProtocol: vxlan
+
+      ipam:
+        mode: cluster-pool
+        operator:
+          clusterPoolIPv4PodCIDRList:
+            - "10.200.0.0/16"
+          clusterPoolIPv4MaskSize: 24
+
+    wait: true
+    wait_timeout: 10m

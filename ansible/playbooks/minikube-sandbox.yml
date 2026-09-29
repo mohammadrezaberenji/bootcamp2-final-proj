@@ -1,0 +1,7 @@
+---
+- name: Configure TaskFlow Minikube Sandbox
+  hosts: devops_server
+  become: true
+
+  roles:
+    - minikube_sandbox

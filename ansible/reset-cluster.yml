@@ -1,0 +1,32 @@
+---
+- name: Reset Kubernetes cluster
+  hosts: k8s_cluster
+  become: true
+
+  tasks:
+    - name: Reset kubeadm state
+      ansible.builtin.command:
+        cmd: kubeadm reset -f --cri-socket unix:///run/containerd/containerd.sock
+      register: kubeadm_reset
+      changed_when: kubeadm_reset.rc == 0
+
+    - name: Remove Kubernetes CNI configuration
+      ansible.builtin.file:
+        path: /etc/cni/net.d
+        state: absent
+
+    - name: Recreate Kubernetes CNI configuration directory
+      ansible.builtin.file:
+        path: /etc/cni/net.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Remove old Cilium runtime state
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /var/run/cilium
+        - /var/lib/cilium
