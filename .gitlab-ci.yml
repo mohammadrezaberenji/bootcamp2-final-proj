@@ -3,7 +3,7 @@ stages:
   - quality
   - build
   - publish
-
+  - update_gitops
 
 variables:
   DOCKER_BUILDKIT: "1"
@@ -13,8 +13,8 @@ variables:
   NEXUS_DOCKERHUB_PROXY: nexus.server:8083
   NEXUS_HOSTED_REGISTRY: nexus.server:8082
 
-  #BACKEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow/backend:$CI_COMMIT_SHA
-  #FRONTEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow/frontend:$CI_COMMIT_SHA
+  # BACKEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow/backend:$CI_COMMIT_SHA
+  # FRONTEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow/frontend:$CI_COMMIT_SHA
 
   BACKEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow-backend:$CI_COMMIT_SHA
   FRONTEND_IMAGE: $NEXUS_HOSTED_REGISTRY/taskflow-frontend:$CI_COMMIT_SHA
@@ -120,11 +120,41 @@ publish_frontend_image:
     - docker push "$FRONTEND_IMAGE"  
 
 
+update_gitops:
+  stage: update_gitops
+  image: $NEXUS_DOCKERHUB_PROXY/library/alpine:3.21
+  tags:
+    - docker-ci
+  needs:
+    - publish_backend_image
+    - publish_frontend_image
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "feature/kuber-cluster"'
+  before_script:
+    - apk add --no-cache git
+  script:
+    - |
+      set -eu
 
+      git config user.name "GitLab CI"
+      git config user.email "gitlab-ci@example.local"
 
+      git fetch origin feature/kuber-cluster
+      git checkout -B feature/kuber-cluster origin/feature/kuber-cluster
 
+      sed -i "/^backend:/,/^frontend:/ s/^    tag:.*/    tag: \"$CI_COMMIT_SHA\"/" helm/taskflow/values.yaml
+      sed -i "/^frontend:/,/^postgres:/ s/^    tag:.*/    tag: \"$CI_COMMIT_SHA\"/" helm/taskflow/values.yaml
 
+      git add helm/taskflow/values.yaml
 
+      if git diff --cached --quiet; then
+        echo "No GitOps changes"
+        exit 0
+      fi
 
+      git commit -m "ci: update Helm image tags to $CI_COMMIT_SHORT_SHA [skip ci]"
 
+      git remote set-url origin \
+        "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
 
+      git push origin HEAD:feature/kuber-cluster

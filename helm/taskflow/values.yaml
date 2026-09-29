@@ -1,15 +1,12 @@
 global:
   existingSecret: taskflow-secrets
-
   imagePullSecrets:
     - name: nexus-pull-credentials
-
 backend:
   replicaCount: 2
   image:
     repository: nexus.server:8082/taskflow-backend
-    tag: "1.0.0"
-    digest: ""
+    tag: "fc000c1f0e8b5f2a9dc692efffe27062d4fee58e"
     pullPolicy: IfNotPresent
   service:
     port: 8000
@@ -20,13 +17,17 @@ backend:
     limits:
       cpu: 500m
       memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 60
 
 frontend:
   replicaCount: 2
   image:
     repository: nexus.server:8082/taskflow-frontend
-    tag: "1.0.0"
-    digest: ""
+    tag: "e43c0f061a3d10b6e33e9fe121c6b0a617eb9bb4"
     pullPolicy: IfNotPresent
   service:
     port: 8080
@@ -36,9 +37,14 @@ frontend:
       memory: 64Mi
     limits:
       cpu: 250m
-      memory: 256Mi
+      memory: 512Mi
+  vpa:
+    enabled: true
+    updateMode: "Auto"
 
 postgres:
+  customResource:
+    enabled: false
   replicaCount: 1
   image:
     repository: postgres
@@ -49,7 +55,7 @@ postgres:
   service:
     port: 5432
   persistence:
-    enabled: true
+    existingClaim: postgres-data
     storageClass: local-path
     size: 2Gi
   resources:
@@ -89,3 +95,10 @@ config:
   DB_RETRY_DELAY_SECONDS: "3"
   LOG_LEVEL: "INFO"
   APP_VERSION: "1.0.0"
+
+ingress:
+  enabled: true
+  className: traefik
+  host: ""
+  path: /
+  pathType: Prefix

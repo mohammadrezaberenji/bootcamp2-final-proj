@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
+  annotations:
+    kubernetes.io/change-cause: {{ printf "frontend image: %s:%s" .Values.frontend.image.repository (.Values.frontend.image.tag | toString) | quote }}
 spec:
   replicas: {{ .Values.frontend.replicaCount }}
   strategy:
