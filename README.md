@@ -162,6 +162,30 @@ Serving the production build (e.g. with Nginx) needs two things:
 
 ---
 
-## Project
+## About me
 
-Developed for **Hamrah Academy DevOps Bootcamp**.
+I am **Mohammad Reza Berenji**, a software engineer with seven years of Android
+experience, transitioning into DevOps after completing the Hamrah Academy
+DevOps Bootcamp. My long-term goal is to grow into platform engineering and
+infrastructure architecture.
+
+This repository is my personal version of **TaskFlow**, originally developed
+with a three-person team for the bootcamp final project.
+
+### My contributions
+
+- Built **GitLab CI/CD** pipelines for testing, **Docker** image builds, and
+  publishing to **Nexus**.
+- Configured **Kubernetes** on **Minikube**, including **HPA** and **VPA** autoscaling.
+- Established the **Gitflow** workflow and integrated **SonarQube** code analysis.
+- Configured **Argo CD** for **GitOps** deployments.
+- Collaborated on **Helm**, **Ansible**, **Traefik** ingress, monitoring with
+  **Prometheus**, **Grafana**, **VictoriaMetrics**, and **Alertmanager**, and
+  Kubernetes backups with **Velero**.
+
+### Links
+
+- [My GitHub profile](https://github.com/mohammadrezaberenji)
+- [Original team project](https://gitlab.chabokan.net/zmansouri760/bootcamp2-final-proj)
+- [Project website](https://zerodowntime.ir)
+
