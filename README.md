@@ -188,4 +188,6 @@ with a three-person team for the bootcamp final project.
 - [My GitHub profile](https://github.com/mohammadrezaberenji)
 - [Original team project](https://gitlab.chabokan.net/zmansouri760/bootcamp2-final-proj)
 - [Project website](https://zerodowntime.ir)
+- [My LinkedIn](https://www.linkedin.com/in/mohammadrezaberenji/)
+
 
